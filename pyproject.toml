@@ -18,7 +18,7 @@ beautifulsoup4 = "4.14.2"
 colorlog = "6.10.1"
 datetime = "5.5"
 # Keep dulwich at 0.24.1 or run into dependency hell with lastversion
-dulwich = "0.24.1"
+dulwich = "0.24.10"
 eventlet = "0.40.3"
 flask = "3.1.2"
 flask-apscheduler = "1.13.1"
