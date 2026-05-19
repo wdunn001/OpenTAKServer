@@ -304,6 +304,10 @@ def create_app(cli=True):
 
         app.register_blueprint(scheduler_blueprint)
 
+        from opentakserver.oidc.routes import oidc_bp
+
+        app.register_blueprint(oidc_bp)
+
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1)
 
     else:
@@ -354,6 +358,10 @@ def create_app(cli=True):
         from opentakserver.blueprints.scheduled_jobs import scheduler_blueprint
 
         app.register_blueprint(scheduler_blueprint)
+
+        from opentakserver.oidc.routes import oidc_bp
+
+        app.register_blueprint(oidc_bp)
 
     return app
 

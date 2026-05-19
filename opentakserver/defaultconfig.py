@@ -142,6 +142,37 @@ class DefaultConfig:
 
     OTS_IP_WHITELIST = ["127.0.0.1"]
 
+    # Authentik OIDC settings (Mass Zero TAK SSO)
+    # When OIDC_ENABLED is True, the OTS web UI exposes a "Sign in with Mass Zero"
+    # button that runs an authorization_code + PKCE flow against Authentik. The
+    # existing username/password Flask-Security login path is preserved.
+    OIDC_ENABLED = os.getenv("OIDC_ENABLED", "False").lower() in ["true", "1", "yes"]
+    OIDC_ISSUER = os.getenv(
+        "OIDC_ISSUER",
+        "https://auth.masszerofpv.com/application/o/mass-zero-tak/",
+    )
+    OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID", "mass-zero-tak")
+    # Empty for public PKCE clients; OTS is a confidential client so this is set.
+    OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET", "")
+    OIDC_REDIRECT_URI = os.getenv(
+        "OIDC_REDIRECT_URI",
+        "https://tak.masszerofpv.com/auth/callback",
+    )
+    # Space-separated OIDC scopes requested from Authentik.
+    OIDC_SCOPES = os.getenv("OIDC_SCOPES", "openid profile email")
+    # When an OIDC-authenticated user does not exist locally, auto-provision them
+    # with these roles. The TAK web admin role is "administrator".
+    OIDC_DEFAULT_ROLES = os.getenv("OIDC_DEFAULT_ROLES", "administrator").split(",")
+    # Button label for the login page.
+    OIDC_BUTTON_LABEL = os.getenv("OIDC_BUTTON_LABEL", "Sign in with Mass Zero")
+    # If True, perform an Authentik /end-session/ redirect when the user logs out
+    # of OTS so the upstream SSO session is also terminated.
+    OIDC_LOGOUT_REDIRECT = os.getenv("OIDC_LOGOUT_REDIRECT", "True").lower() in [
+        "true",
+        "1",
+        "yes",
+    ]
+
     # Meshtastic settings
     OTS_ENABLE_MESHTASTIC = False
     OTS_MESHTASTIC_TOPIC = "opentakserver"
