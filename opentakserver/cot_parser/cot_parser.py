@@ -110,6 +110,38 @@ class CoTController:
             mission_name = dest.attrs["mission"]
 
         with self.context:
+            # Ensure an `euds` row exists for this sender so the `cot.sender_uid`
+            # FK constraint passes. Native ATAK clients self-register via the
+            # Marti TLS enrollment flow; server-to-server CoT publishers (the
+            # mzfs cot-bridge, mqtt → rabbitmq integrations) don't, and used
+            # to fall into the IntegrityError catch below and silently drop
+            # every event. Insert-on-missing keeps publisher-side fan-out
+            # paths working without a manual EUD pre-seed step.
+            try:
+                existing_eud = self.db.session.execute(
+                    select(EUD).filter_by(uid=uid)
+                ).first()
+                if not existing_eud:
+                    callsign = uid
+                    contact = event.find("contact")
+                    if contact and contact.attrs.get("callsign"):
+                        callsign = contact.attrs["callsign"]
+                    self.db.session.execute(
+                        insert(EUD).values(
+                            uid=uid,
+                            callsign=callsign,
+                            device="server-published",
+                            platform="cot-publisher",
+                            version="auto-registered",
+                            last_event_time=timestamp,
+                        )
+                    )
+                    self.db.session.commit()
+            except sqlalchemy.exc.IntegrityError:
+                # Race: another worker just inserted the same EUD. Roll back
+                # so the CoT insert below uses a clean session.
+                self.db.session.rollback()
+
             res = self.db.session.execute(
                 insert(CoT).values(
                     how=event.attrs["how"],
