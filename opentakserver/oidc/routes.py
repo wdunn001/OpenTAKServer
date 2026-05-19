@@ -146,16 +146,15 @@ def auth_login_page():
     without depending on the SPA bundle. The default username/password
     Flask-Security login at ``/api/login`` remains the primary admin path.
     """
+    from flask import render_template
+
     cfg = get_config()
-    # The styled template lands in commit 4 ("Sign in with Mass Zero" UI hook).
-    # For now return a minimal placeholder so the route is wired and the
-    # blueprint registers cleanly.
-    if not cfg["enabled"]:
-        return ("OIDC login is disabled.", 200, {"Content-Type": "text/plain"})
-    return (
-        f"<a href='/api/oidc/login'>{cfg['button_label']}</a>",
-        200,
-        {"Content-Type": "text/html"},
+    return render_template(
+        "oidc_login.html",
+        oidc_enabled=cfg["enabled"],
+        button_label=cfg["button_label"],
+        oidc_login_url="/api/oidc/login",
+        flask_security_login_url="/api/login",
     )
 
 
