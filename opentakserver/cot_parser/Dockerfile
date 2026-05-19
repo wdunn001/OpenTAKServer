@@ -14,6 +14,9 @@ ENV PATH="/app/venv/bin:$PATH"
 
 RUN pip install git+https://github.com/brian7704/OpenTAKServer.git@docker
 
+# OIDC support (Authentik) — feat/authentik-oidc fork
+RUN pip install "authlib>=1.3.0"
+
 USER ots
 
 ENTRYPOINT ["/app/venv/bin/cot_parser"]

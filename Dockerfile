@@ -16,6 +16,9 @@ ENV PATH="/app/venv/bin:$PATH"
 # TODO: Install from PyPI
 RUN pip install git+https://github.com/brian7704/OpenTAKServer.git
 
+# OIDC support (Authentik) — feat/authentik-oidc fork
+RUN pip install "authlib>=1.3.0"
+
 RUN /app/venv/bin/flask --app /app/venv/lib/python3.13/site-packages/opentakserver/app.py ots create-ca
 #RUN /app/venv/bin/flask --app /app/venv/lib/python3.13/site-packages/opentakserver/app.py db upgrade
 
