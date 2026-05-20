@@ -57,6 +57,16 @@ class DefaultConfig:
     # How many CoT messages that cot_parser processes should prefetch. https://www.rabbitmq.com/docs/consumer-prefetch
     OTS_RABBITMQ_PREFETCH = 2
 
+    # mzfs fork: every parsed CoT event is fan-out-republished on this exchange so
+    # MassZero.CotIngestor (the inverse of CotBridge) can pull events back into
+    # mzfs. Safe in non-mzfs deployments — the exchange is declared idempotently
+    # and nothing breaks if there's no subscriber.
+    OTS_COT_INGRESS_EXCHANGE = os.getenv("OTS_COT_INGRESS_EXCHANGE", "cot.ingress")
+    # mzfs fork: when this OTS instance is dedicated to a single Mass Zero tenant
+    # the company id can be stamped onto every ingress envelope here. Leave unset
+    # for shared OTS instances; the ingestor will derive tenant from CoT detail.
+    OTS_MZFS_COMPANY_ID = os.getenv("OTS_MZFS_COMPANY_ID", None)
+
     # TAK.gov account link settings
     OTS_TAK_GOV_LINKED = False
     OTS_TAK_GOV_ACCESS_TOKEN = ""

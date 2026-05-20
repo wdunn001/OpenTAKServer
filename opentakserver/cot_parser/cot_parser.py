@@ -1243,6 +1243,67 @@ class CoTController:
                         ),
                     )
 
+    def republish_to_ingress(self, body, uid):
+        """mzfs fork: fanout every parsed CoT event to ``cot.ingress`` so the
+        Mass Zero CotIngestor service can pull events back into mzfs (closes the
+        federation loop opened by CotBridge).
+
+        Best-effort. Never raises into the on_message hot path.
+
+        Wire schema is the same OTS envelope shape the standard cot_parser
+        already consumes, with an additional ``company_id`` field stamped from
+        the EUD ↔ Company mapping when the receiving OTS instance is mzfs-managed
+        (resolved from EUD callsign/uid → Mass Zero Company.Id lookup at parse
+        time; falls back to None for non-mzfs OTS deployments).
+        """
+        try:
+            if not self.rabbit_channel or self.rabbit_channel.is_closed:
+                return
+            exchange_name = self.context.app.config.get(
+                "OTS_COT_INGRESS_EXCHANGE", "cot.ingress"
+            )
+            # Idempotent declare so the exchange exists even before the ingestor binds.
+            self.rabbit_channel.exchange_declare(
+                exchange=exchange_name, exchange_type="fanout", durable=True
+            )
+            payload = {
+                "uid": uid,
+                "cot": body.get("cot"),
+                "user_id": body.get("user_id"),
+                # When the OTS fork knows the mzfs tenant for this EUD it
+                # populates company_id here. The lookup is intentionally lazy —
+                # for non-mzfs OTS deployments this stays None and the ingestor
+                # derives company from CoT detail or queue-scoped config.
+                "company_id": self.resolve_mzfs_company_id(uid),
+            }
+            self.rabbit_channel.basic_publish(
+                exchange=exchange_name,
+                routing_key="",
+                body=json.dumps(payload),
+                properties=pika.BasicProperties(
+                    expiration=self.context.app.config.get("OTS_RABBITMQ_TTL"),
+                    content_type="application/json",
+                ),
+            )
+        except BaseException as e:
+            self.logger.warning(
+                "Failed to republish CoT to ingress exchange: %s", e
+            )
+
+    def resolve_mzfs_company_id(self, uid):
+        """Best-effort EUD UID → mzfs Company.Id mapping.
+
+        Slice-1 returns the optionally-configured single tenant id from
+        ``OTS_MZFS_COMPANY_ID``. Slice-2 (post-OIDC linkage) will look this up
+        in a per-EUD mapping table stamped at sign-in time by the Authentik
+        callback. Returning None is always safe — the ingestor side derives
+        the tenant from CoT detail (``<__mzfs company="..."/>``) or queue-name.
+        """
+        try:
+            return self.context.app.config.get("OTS_MZFS_COMPANY_ID")
+        except BaseException:
+            return None
+
     def on_message(
         self,
         channel: pika.channel.Channel,
@@ -1282,6 +1343,11 @@ class CoTController:
                 self.parse_stats(event, uid)
                 self.generate_mission_change(uid, event)
                 self.route_cot(event, uid, body.get("user_id"))
+                # mzfs fork: republish every parsed CoT event to the cot.ingress
+                # fanout exchange so MassZero.CotIngestor (the inverse of
+                # CotBridge) can pull the federation loop closed. Best-effort —
+                # any failure is logged but never blocks ack of the main message.
+                self.republish_to_ingress(body, uid)
                 self.rabbit_channel.basic_ack(delivery_tag=basic_deliver.delivery_tag)
 
                 # EUD went offline
