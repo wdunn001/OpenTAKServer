@@ -190,19 +190,25 @@ class EudHandler(socketserver.BaseRequestHandler):
     def close_connection(self):
         self.logger.info("{} disconnected".format(self.client_address[0]))
 
-        self.rabbit_channel.basic_publish(
-            exchange="cot_parser",
-            body=json.dumps(
-                {
-                    "uid": self.uid,
-                    "cot": None,
-                    "disconnected": True,
-                    "user_id": self.user.id if self.user else None,
-                }
-            ),
-            routing_key="cot_parser",
-            properties=pika.BasicProperties(expiration=self.app.config.get("OTS_RABBITMQ_TTL")),
-        )
+        # rabbit_channel is None when the RabbitMQ connect failed/never ran (e.g. a
+        # connection that drops during the TLS handshake, before setup_rabbitmq).
+        # Publishing the disconnect notice is best-effort — guard it so a close on a
+        # channel-less connection doesn't raise AttributeError and kill the handler
+        # thread (which otherwise floods the log on every probe/handshake-fail).
+        if self.rabbit_channel and self.rabbit_channel.is_open:
+            self.rabbit_channel.basic_publish(
+                exchange="cot_parser",
+                body=json.dumps(
+                    {
+                        "uid": self.uid,
+                        "cot": None,
+                        "disconnected": True,
+                        "user_id": self.user.id if self.user else None,
+                    }
+                ),
+                routing_key="cot_parser",
+                properties=pika.BasicProperties(expiration=self.app.config.get("OTS_RABBITMQ_TTL")),
+            )
 
         self.unbind_rabbitmq_queues()
 
